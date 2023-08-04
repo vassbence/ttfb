@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ttfb</title>
+    <style>
+      /* reset */
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+      }
+      * {
+        margin: 0;
+      }
+      body {
+        line-height: 1.5;
+        -webkit-font-smoothing: antialiased;
+      }
+      img,
+      picture,
+      video,
+      canvas,
+      svg {
+        display: block;
+        max-width: 100%;
+      }
+      input,
+      button,
+      textarea,
+      select {
+        font: inherit;
+      }
+      p,
+      h1,
+      h2,
+      h3,
+      h4,
+      h5,
+      h6 {
+        overflow-wrap: break-word;
+      }
+      #root,
+      #__next {
+        isolation: isolate;
+      }
+      /* reset end  */
+      :root {
+        --bg: #ffffff;
+        --fg: #171717;
+        --input-placeholder: #8f8f8f;
+        --button-hover: #383838;
+      }
+
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #000000;
+          --fg: #ededed;
+          --input-placeholder: #8f8f8f;
+          --button-hover: #ccc;
+        }
+      }
+
+      body {
+        font-family: Roboto Mono, Menlo, Monaco, Lucida Console, Liberation Mono,
+          DejaVu Sans Mono, Bitstream Vera Sans Mono, Courier New, monospace;
+        max-width: 532px;
+        padding: 64px 16px;
+        margin: 0 auto;
+        background: var(--bg);
+        color: var(--fg);
+      }
+
+      #form {
+        display: flex;
+        margin-bottom: 24px;
+      }
+
+      #form label {
+        display: flex;
+        flex-direction: column;
+        flex: 1 1 0%;
+      }
+
+      #form input {
+        height: 40px;
+        appearance: none;
+        background: var(--bg);
+        border: 1px solid var(--input-placeholder);
+        color: var(--fg);
+        border-radius: 4px;
+        padding-left: 12px;
+        outline: none;
+      }
+
+      #form input:focus {
+        border-color: var(--fg);
+        box-shadow: 0 0 0 1px var(--fg);
+      }
+
+      #form input::placeholder {
+        color: var(--input-placeholder);
+      }
+
+      #form input[type="submit"] {
+        margin-left: 12px;
+        cursor: pointer;
+        background: var(--fg);
+        color: var(--bg);
+        border-color: var(--fg);
+        box-shadow: none;
+        padding: 0 12px;
+      }
+
+      #form input[type="submit"]:hover {
+        border-color: var(--button-hover);
+        background: var(--button-hover);
+      }
+
+      .result {
+        display: flex;
+        justify-content: space-between;
+      }
+
+      .result + .result {
+        margin-top: 4px;
+      }
+    </style>
+  </head>
+  <body>
+    <form id="form">
+      <label>
+        <input autofocus placeholder="example.com" name="url" />
+      </label>
+      <input type="submit" value="measure" />
+    </form>
+    <div class="results">
+      <div class="result">
+        <div>us-east-1:</div>
+        <div id="result-us-east-1">...</div>
+      </div>
+      <div class="result">
+        <div>us-west-1:</div>
+        <div id="result-us-west-1">...</div>
+      </div>
+      <div class="result">
+        <div>sa-east-1:</div>
+        <div id="result-sa-east-1">...</div>
+      </div>
+      <div class="result">
+        <div>eu-west-1:</div>
+        <div id="result-eu-west-1">...</div>
+      </div>
+      <div class="result">
+        <div>eu-north-1:</div>
+        <div id="result-eu-north-1">...</div>
+      </div>
+      <div class="result">
+        <div>eu-central-1:</div>
+        <div id="result-eu-central-1">...</div>
+      </div>
+      <div class="result">
+        <div>af-south-1:</div>
+        <div id="result-af-south-1">...</div>
+      </div>
+      <div class="result">
+        <div>ap-south-1:</div>
+        <div id="result-ap-south-1">...</div>
+      </div>
+      <div class="result">
+        <div>ap-southeast-1:</div>
+        <div id="result-ap-southeast-1">...</div>
+      </div>
+      <div class="result">
+        <div>ap-southeast-2:</div>
+        <div id="result-ap-southeast-2">...</div>
+      </div>
+      <div class="result">
+        <div>ap-northeast-1:</div>
+        <div id="result-ap-northeast-1">...</div>
+      </div>
+    </div>
+    <script>
+      const REGIONS = [
+        "us-east-1",
+        "us-west-1",
+        "sa-east-1",
+        "eu-west-1",
+        "eu-north-1",
+        "eu-central-1",
+        "af-south-1",
+        "ap-south-1",
+        "ap-southeast-1",
+        "ap-southeast-2",
+        "ap-northeast-1",
+      ];
+
+      const form = document.getElementById("form");
+      form.addEventListener("submit", (event) => {
+        event.preventDefault();
+
+        for (const [k, v] of new FormData(event.target).entries()) {
+          for (const region of REGIONS) {
+            document.getElementById(`result-${region}`).innerText = "...";
+            const url = v.startsWith("http") ? v : `https://${v}`;
+            const res = fetch(
+              `/api/v1/${region}?url=${encodeURIComponent(url)}`
+            )
+              .then((res) => res.json())
+              .then(({ ttfb, status, redirects, final_url }) => {
+                if (status === "request_failed")
+                  throw new Error("request failed");
+
+                if (status !== 200) {
+                  document.getElementById(
+                    `result-${region}`
+                  ).innerText = `status: ${status}, ttfb: ${ttfb} ms`;
+                  return;
+                }
+
+                document.getElementById(
+                  `result-${region}`
+                ).innerText = `${ttfb} ms`;
+              })
+              .catch(() => {
+                document.getElementById(
+                  `result-${region}`
+                ).innerText = `failed to measure`;
+              });
+          }
+        }
+      });
+    </script>
+  </body>
+</html>
